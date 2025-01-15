@@ -2,7 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const jwt = require('jsonwebtoken');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
 
 // middleware
@@ -27,11 +28,42 @@ async function run() {
 
     const database = client.db('threadHive');
     const postsCollection = database.collection('posts');
+    const usersCollection = database.collection('users');
+
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process);
+    });
 
     // user related api
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: 'user already exists', insertedId: null });
+      }
+
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.get('/users', async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.patch('/users');
+
+    // posts related api
     app.post('/posts', async (req, res) => {
       const newPost = req.body;
       const result = await postsCollection.insertOne(newPost);
+      res.send(result);
+    });
+
+    app.get('/posts', async (req, res) => {
+      const result = await postsCollection.find().toArray();
       res.send(result);
     });
 
