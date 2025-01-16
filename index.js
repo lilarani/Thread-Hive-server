@@ -102,6 +102,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/users/:email', async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
     app.get('/users/admin/:email', verifyToken, async (req, res) => {
       const email = req.params.email;
       if (email !== req.decoded.email) {
@@ -132,13 +139,6 @@ async function run() {
         res.send(result);
       }
     );
-
-    // posts related api
-    // app.post('/posts', async (req, res) => {
-    //   const newPost = req.body;
-    //   const result = await postsCollection.insertOne(newPost);
-    //   res.send(result);
-    // });
 
     app.post('/posts', async (req, res) => {
       const newPost = req.body;
@@ -200,8 +200,10 @@ async function run() {
       });
     });
 
-    app.get('/posts', async (req, res) => {
-      const result = await postsCollection.find().toArray();
+    app.get('/posts/:email', async (req, res) => {
+      const email = req.params.email;
+      const posts = { userEmail: email };
+      const result = await postsCollection.find(posts).toArray();
       res.send(result);
     });
 
@@ -217,7 +219,7 @@ async function run() {
       const filter = { email: email };
       const updatedDoc = {
         $set: {
-          badge: 'https://ibb.co.com/K0fw7w5',
+          badge: 'https://i.ibb.co.com/PmPQ4Qr/gold.jpg',
           membership: true,
         },
       };
