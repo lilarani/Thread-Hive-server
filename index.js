@@ -4,11 +4,13 @@ const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_kEY);
 const port = process.env.PORT || 5000;
 
 // middleware
 app.use(cors());
 app.use(express.json());
+app.use(cors({ origin: ['http://localhost:5173'] }));
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.fdepx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -29,6 +31,7 @@ async function run() {
     const database = client.db('threadHive');
     const postsCollection = database.collection('posts');
     const usersCollection = database.collection('users');
+    const successedPaymentCollection = database.collection('successedPayment');
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -65,6 +68,21 @@ async function run() {
       }
       next();
     };
+
+    // payment intent
+    app.post('/create-payment-intent', async (req, res) => {
+      // const { price } = req.body;
+      let price = 200;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
 
     // user related api
     app.post('/users', async (req, res) => {
@@ -116,14 +134,94 @@ async function run() {
     );
 
     // posts related api
+    // app.post('/posts', async (req, res) => {
+    //   const newPost = req.body;
+    //   const result = await postsCollection.insertOne(newPost);
+    //   res.send(result);
+    // });
+
     app.post('/posts', async (req, res) => {
       const newPost = req.body;
+      const { userEmail } = newPost;
+
+      const user = await usersCollection.findOne({ email: userEmail });
+
+      const isMember = user.membership;
+
+      if (!isMember) {
+        const postCount = await postsCollection.countDocuments({
+          userEmail: userEmail,
+        });
+
+        if (postCount >= 5) {
+          return res.status(400).json({
+            message:
+              'You can only create up to 5 posts. Become a member to add more posts.',
+          });
+        }
+      }
+
       const result = await postsCollection.insertOne(newPost);
-      res.send(result);
+
+      res.status(201).json({
+        message: 'Post added successfully!',
+        result,
+      });
+    });
+
+    app.get('/my-post', async (req, res) => {
+      const { userEmail } = req.query;
+
+      if (!userEmail) {
+        return res.send({
+          membership: false,
+          postCount: 0,
+        });
+      }
+
+      const user = await usersCollection.findOne({ email: userEmail });
+
+      if (!user) {
+        return res.send({
+          membership: false,
+          postCount: 0,
+        });
+      }
+
+      const isMember = user.membership || false;
+
+      const postCount = await postsCollection.countDocuments({
+        userEmail: userEmail,
+      });
+
+      res.send({
+        membership: isMember,
+        postCount: postCount,
+      });
     });
 
     app.get('/posts', async (req, res) => {
       const result = await postsCollection.find().toArray();
+      res.send(result);
+    });
+
+    // payment related api
+    app.post('/successedPayment', async (req, res) => {
+      const payment = req.body;
+      const result = await successedPaymentCollection.insertOne(payment);
+      res.send(result);
+    });
+
+    app.patch('/successedPayment/:email', async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const updatedDoc = {
+        $set: {
+          badge: 'https://ibb.co.com/K0fw7w5',
+          membership: true,
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
 
