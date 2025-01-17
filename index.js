@@ -32,6 +32,7 @@ async function run() {
     const postsCollection = database.collection('posts');
     const usersCollection = database.collection('users');
     const successedPaymentCollection = database.collection('successedPayment');
+    const announcementCollection = database.collection('announcements');
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -140,6 +141,12 @@ async function run() {
       }
     );
 
+    app.get('/posts', async (req, res) => {
+      const allPost = req.body;
+      const result = await postsCollection.find(allPost).toArray();
+      res.send(result);
+    });
+
     app.post('/posts', async (req, res) => {
       const newPost = req.body;
       const { userEmail } = newPost;
@@ -221,9 +228,17 @@ async function run() {
         $set: {
           badge: 'https://i.ibb.co.com/PmPQ4Qr/gold.jpg',
           membership: true,
+          status: 'Active',
         },
       };
       const result = await usersCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    // announcement related api
+    app.post('/announcements', async (req, res) => {
+      const announcement = req.body;
+      const result = await announcementCollection.insertOne(announcement);
       res.send(result);
     });
 
