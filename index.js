@@ -235,7 +235,8 @@ async function run() {
       res.send(result);
     });
 
-    app.patch('/posts/:id', async (req, res) => {
+    // upVote API to increment upVote count
+    app.patch('/posts/downVote/:id', async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updatedUpVotes = {
@@ -244,6 +245,19 @@ async function run() {
         },
       };
       const result = await postsCollection.updateOne(filter, updatedUpVotes);
+      res.send(result);
+    });
+
+    // downVote API to decrement upDownVote count
+    app.patch('/posts/downVote/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDownVotes = {
+        $inc: {
+          downVote: 1,
+        },
+      };
+      const result = await postsCollection.updateOne(filter, updatedDownVotes);
       res.send(result);
     });
 
