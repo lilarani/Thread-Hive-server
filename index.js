@@ -28,11 +28,13 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    // database and collections
     const database = client.db('threadHive');
     const postsCollection = database.collection('posts');
     const usersCollection = database.collection('users');
     const successedPaymentCollection = database.collection('successedPayment');
     const announcementCollection = database.collection('announcements');
+    const commentsCollection = database.collection('comments');
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -141,6 +143,7 @@ async function run() {
       }
     );
 
+    // post related api
     app.get('/posts', async (req, res) => {
       const allPost = req.body;
       const result = await postsCollection.find(allPost).toArray();
@@ -214,6 +217,36 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/posts/recent/:email', async (req, res) => {
+      const email = req.params.email;
+      const posts = { userEmail: email };
+      const recentpost = await postsCollection
+        .find(posts)
+        .sort({ date: -1 })
+        .limit(3)
+        .toArray();
+      res.send(recentpost);
+    });
+
+    app.delete('/posts/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await postsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.patch('/posts/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedUpVotes = {
+        $inc: {
+          upVote: 1,
+        },
+      };
+      const result = await postsCollection.updateOne(filter, updatedUpVotes);
+      res.send(result);
+    });
+
     // payment related api
     app.post('/successedPayment', async (req, res) => {
       const payment = req.body;
@@ -236,9 +269,36 @@ async function run() {
     });
 
     // announcement related api
-    app.post('/announcements', async (req, res) => {
+    app.post('/announcements', verifyToken, verifyAdmin, async (req, res) => {
       const announcement = req.body;
       const result = await announcementCollection.insertOne(announcement);
+      res.send(result);
+    });
+
+    // Comment related api
+    app.post('/comments', async (req, res) => {
+      const { postId, email, commentText } = req.body;
+      const newComment = {
+        postId,
+        email,
+        commentText,
+        feedback: '',
+        reported: false,
+      };
+
+      try {
+        const result = await commentsCollection.insertOne(newComment);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to add comment', error });
+      }
+    });
+
+    app.get('/comments/:postId', async (req, res) => {
+      const { postId } = req.params;
+      const result = await commentsCollection
+        .find({ postId: postId })
+        .toArray();
       res.send(result);
     });
 
