@@ -146,8 +146,12 @@ async function run() {
     // post related api
     app.get('/posts', async (req, res) => {
       const allPost = req.body;
-      const result = await postsCollection.find(allPost).toArray();
-      res.send(result);
+      const recentPosts = await postsCollection
+        .find({})
+        .sort({ date: -1 })
+        .toArray();
+
+      res.send(recentPosts);
     });
 
     app.post('/posts', async (req, res) => {
@@ -261,6 +265,26 @@ async function run() {
       res.send(result);
     });
 
+    // Search posts by tags
+    app.get('/post-search', async (req, res) => {
+      try {
+        const { tag } = req.query;
+        const filteredPost = await postsCollection
+          .find({ tag: { $regex: new RegExp(tag, 'i') } })
+          .toArray();
+
+        if (filteredPost.length > 0) {
+          res.status(200).send(filteredPost);
+        } else {
+          res
+            .status(404)
+            .send({ message: 'No posts found with the given tag.' });
+        }
+      } catch (error) {
+        res.status(500).send({ message: 'Server Error' });
+      }
+    });
+
     // payment related api
     app.post('/successedPayment', async (req, res) => {
       const payment = req.body;
@@ -313,6 +337,20 @@ async function run() {
       const result = await commentsCollection
         .find({ postId: postId })
         .toArray();
+      res.send(result);
+    });
+
+    app.patch('/reportedComment/:id', async (req, res) => {
+      const id = req.params.id;
+      const { feedback } = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          reported: true,
+          feedback: feedback,
+        },
+      };
+      const result = await commentsCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
 
