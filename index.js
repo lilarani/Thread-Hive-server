@@ -154,6 +154,14 @@ async function run() {
       res.send(recentPosts);
     });
 
+    // post details api
+    app.get('/post-details/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await postsCollection.findOne(query);
+      res.send(result);
+    });
+
     app.post('/posts', async (req, res) => {
       const newPost = req.body;
       const { userEmail } = newPost;
