@@ -26,7 +26,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     // database and collections
     const database = client.db('threadHive');
@@ -35,6 +35,7 @@ async function run() {
     const successedPaymentCollection = database.collection('successedPayment');
     const announcementCollection = database.collection('announcements');
     const commentsCollection = database.collection('comments');
+    const tagsCollection = database.collection('tags');
 
     // jwt related api
     app.post('/jwt', async (req, res) => {
@@ -88,7 +89,7 @@ async function run() {
     });
 
     // user related api
-    app.post('/users', async (req, res) => {
+    app.post('/users', verifyToken, async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
@@ -105,7 +106,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get('/users/:email', async (req, res) => {
+    app.get('/users/:email', verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
       const result = await usersCollection.findOne(query);
@@ -162,7 +163,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post('/posts', async (req, res) => {
+    app.post('/posts', verifyToken, async (req, res) => {
       const newPost = req.body;
       const { userEmail } = newPost;
 
@@ -248,7 +249,7 @@ async function run() {
     });
 
     // upVote API to increment upVote count
-    app.patch('/posts/downVote/:id', async (req, res) => {
+    app.patch('/posts/upVote/:id', async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const updatedUpVotes = {
@@ -260,7 +261,7 @@ async function run() {
       res.send(result);
     });
 
-    // downVote API to decrement upDownVote count
+    // downVote API to decrement DownVote count
     app.patch('/posts/downVote/:id', async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -321,6 +322,11 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/announcements', async (req, res) => {
+      const result = await announcementCollection.find({}).toArray();
+      res.send(result);
+    });
+
     // Comment related api
     app.post('/comments', async (req, res) => {
       const { postId, email, commentText } = req.body;
@@ -348,6 +354,7 @@ async function run() {
       res.send(result);
     });
 
+    // reported comment
     app.patch('/reportedComment/:id', async (req, res) => {
       const id = req.params.id;
       const { feedback } = req.body;
@@ -362,11 +369,48 @@ async function run() {
       res.send(result);
     });
 
+    // pie chart api
+    app.get('/stats', async (req, res) => {
+      try {
+        const postCount = await postsCollection.countDocuments();
+        const commentCount = await commentsCollection.countDocuments();
+        const userCount = await usersCollection.countDocuments();
+
+        res.json({
+          posts: postCount,
+          comments: commentCount,
+          users: userCount,
+        });
+      } catch (error) {
+        res.status(500).json({ message: 'Error fetching stats', error });
+      }
+    });
+
+    // tags related api
+    app.post('/tags', async (req, res) => {
+      const newTag = req.body;
+      const result = await tagsCollection.insertOne(newTag);
+      res.send(result);
+    });
+
+    app.get('/tags', async (req, res) => {
+      const tags = req.body;
+      const result = await tagsCollection.findOne(tags);
+      res.send(result);
+    });
+
+    // reported activitis page apis
+    app.get('/comments', async (req, res) => {
+      const allComments = req.body;
+      const result = await commentsCollection.find(allComments).toArray();
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
-    await client.db('admin').command({ ping: 1 });
-    console.log(
-      'Pinged your deployment. You successfully connected to MongoDB!'
-    );
+    // await client.db('admin').command({ ping: 1 });
+    // console.log(
+    //   'Pinged your deployment. You successfully connected to MongoDB!'
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
