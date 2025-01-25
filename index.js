@@ -26,7 +26,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    await client.connect();
 
     // database and collections
     const database = client.db('threadHive');
@@ -36,7 +36,7 @@ async function run() {
     const announcementCollection = database.collection('announcements');
     const commentsCollection = database.collection('comments');
     const tagsCollection = database.collection('tags');
-
+    const warningsCollection = database.collection('warnings');
     // jwt related api
     app.post('/jwt', async (req, res) => {
       const user = req.body;
@@ -89,7 +89,7 @@ async function run() {
     });
 
     // user related api
-    app.post('/users', verifyToken, async (req, res) => {
+    app.post('/users', async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
       const existingUser = await usersCollection.findOne(query);
@@ -111,14 +111,6 @@ async function run() {
       const query = { email: email };
       const result = await usersCollection.findOne(query);
       res.send(result);
-    });
-
-    // delete users
-    app.delete('/users/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const deleteUser = await usersCollection.deleteOne(query);
-      res.send(deleteUser);
     });
 
     app.get('/users/admin/:email', verifyToken, async (req, res) => {
@@ -154,7 +146,6 @@ async function run() {
 
     // post related api
     app.get('/posts', async (req, res) => {
-      const allPost = req.body;
       const recentPosts = await postsCollection
         .find({})
         .sort({ date: -1 })
@@ -171,10 +162,16 @@ async function run() {
       res.send(result);
     });
 
+    // This endpoint handles creating a new post.
+    // It verifies the user's token and checks their membership status.
+    //  If the user is not a member, they are restricted to a maximum of 5 posts.
+    // Members can create unlimited posts.
+    // If the user exceeds the post limit, a 400 status code with an appropriate message is returned.
+    // Otherwise, the new post is inserted into the database, and a success response is sent.
+
     app.post('/posts', verifyToken, async (req, res) => {
       const newPost = req.body;
       const { userEmail } = newPost;
-
       const user = await usersCollection.findOne({ email: userEmail });
 
       const isMember = user.membership;
@@ -200,6 +197,7 @@ async function run() {
       });
     });
 
+    // This endpoint retrieves information about a user's posts and membership status.
     app.get('/my-post', async (req, res) => {
       const { userEmail } = req.query;
 
@@ -231,6 +229,7 @@ async function run() {
       });
     });
 
+    // This endpoint retrieves all posts created by a specific user.
     app.get('/posts/:email', async (req, res) => {
       const email = req.params.email;
       const posts = { userEmail: email };
@@ -238,6 +237,7 @@ async function run() {
       res.send(result);
     });
 
+    // This endpoint retrieves the 3 most recent posts created by a specific user.
     app.get('/posts/recent/:email', async (req, res) => {
       const email = req.params.email;
       const posts = { userEmail: email };
@@ -249,6 +249,7 @@ async function run() {
       res.send(recentpost);
     });
 
+    // delete post
     app.delete('/posts/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -362,6 +363,29 @@ async function run() {
       res.send(result);
     });
 
+    // delete Comments
+    app.delete('/comments/:id', async (req, res) => {
+      const id = req.params.id;
+      console.log(id);
+      const query = { _id: new ObjectId(id) };
+      const deleteComments = await commentsCollection.deleteOne(query);
+      res.send(deleteComments);
+    });
+
+    app.patch('comments/:postId', async (req, res) => {
+      let postId = req.params.postId;
+      let filter = { _id: new ObjectId(postId) };
+      let info = await commentsCollection.find({ postId: postId }).toArray();
+      let doc = {
+        $set: {
+          postCount: info.length + 1,
+        },
+      };
+
+      let result = await postsCollection(filter, doc, { upsert: true });
+      res.send(result);
+    });
+
     // reported comment
     app.patch('/reportedComment/:id', async (req, res) => {
       const id = req.params.id;
@@ -402,23 +426,34 @@ async function run() {
     });
 
     app.get('/tags', async (req, res) => {
-      const tags = req.body;
-      const result = await tagsCollection.findOne(tags);
+      const result = await tagsCollection.find({}).toArray();
       res.send(result);
     });
 
-    // reported activitis page apis
+    // reported activitis apis
     app.get('/comments', async (req, res) => {
       const allComments = req.body;
       const result = await commentsCollection.find(allComments).toArray();
       res.send(result);
     });
 
+    // warning related api
+    app.post('/warnings', async (req, res) => {
+      const warning = req.body;
+      const result = await warningsCollection.insertOne(warning);
+      res.send(result);
+    });
+
+    app.get('/warnings', async (req, res) => {
+      const warnings = await warningsCollection.find({}).toArray();
+      res.send(warnings);
+    });
+
     // Send a ping to confirm a successful connection
-    // await client.db('admin').command({ ping: 1 });
-    // console.log(
-    //   'Pinged your deployment. You successfully connected to MongoDB!'
-    // );
+    await client.db('admin').command({ ping: 1 });
+    console.log(
+      'Pinged your deployment. You successfully connected to MongoDB!'
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
