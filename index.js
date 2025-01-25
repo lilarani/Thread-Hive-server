@@ -372,17 +372,20 @@ async function run() {
       res.send(deleteComments);
     });
 
-    app.patch('comments/:postId', async (req, res) => {
+    app.patch('/comment-count/:postId', async (req, res) => {
       let postId = req.params.postId;
+      console.log('my id =  ', postId);
       let filter = { _id: new ObjectId(postId) };
       let info = await commentsCollection.find({ postId: postId }).toArray();
       let doc = {
         $set: {
-          postCount: info.length + 1,
+          postCount: info.length,
         },
       };
 
-      let result = await postsCollection(filter, doc, { upsert: true });
+      let result = await postsCollection.updateOne(filter, doc, {
+        upsert: true,
+      });
       res.send(result);
     });
 
